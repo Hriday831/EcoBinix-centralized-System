@@ -370,8 +370,8 @@
             <div id="dashboard-map-card" class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden">
               <!-- Map Top Overlay Floating Controls -->
               <div class="absolute top-7 left-7 z-[400] flex items-center gap-2 bg-white/90 backdrop-blur-md p-1 rounded-xl shadow-md border border-slate-200">
-                <button id="mapBtnLayerMap" onclick="setMapLayer('standard')" class="px-3.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white shadow-sm transition">Map</button>
-                <button id="mapBtnLayerSat" onclick="setMapLayer('satellite')" class="px-3.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition">Satellite</button>
+                <button id="mapBtnLayerMap" onclick="setMapLayer('standard')" class="px-3.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition">Map</button>
+                <button id="mapBtnLayerSat" onclick="setMapLayer('satellite')" class="px-3.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white shadow-sm transition">Satellite</button>
               </div>
 
               <div class="absolute top-7 right-7 z-[400] flex items-center gap-2">
@@ -863,14 +863,11 @@
       <!-- VIEW 5: ROUTES                                                            -->
       <!-- ========================================================================= -->
       <section id="view-routes" class="hidden space-y-6">
-        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
           <div>
             <h2 class="text-lg font-extrabold text-slate-900">Automated Route Optimization</h2>
             <p class="text-xs text-slate-500">AI-computed collection sequencing based on real-time bin capacity & traffic.</p>
           </div>
-          <button onclick="startRouteSimulation()" id="btnSimulateRoute" class="bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2">
-            <i class="fa-solid fa-play"></i> Simulate Route #104
-          </button>
         </div>
 
         <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
