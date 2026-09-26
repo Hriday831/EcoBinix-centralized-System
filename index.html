@@ -1,0 +1,1159 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ECOBINIX - Smart Waste Management</title>
+  
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Plus Jakarta Sans -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- Leaflet Map CSS & JS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <!-- FontAwesome Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              50: '#ecfdf5',
+              100: '#d1fae5',
+              500: '#10b981',
+              600: '#059669',
+              700: '#047857',
+              800: '#065f46',
+              900: '#064e3b',
+              dark: '#016848',
+            },
+            status: {
+              green: '#10b981',
+              amber: '#f59e0b',
+              red: '#ef4444',
+              blue: '#3b82f6',
+              purple: '#8b5cf6'
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    body {
+      font-family: 'Plus Jakarta Sans', sans-serif;
+      background-color: #f1f5f9;
+      color: #1e293b;
+      overflow-x: hidden;
+    }
+
+    /* Custom Scrollbar */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #f1f5f9;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #cbd5e1;
+      border-radius: 9999px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #94a3b8;
+    }
+
+    /* Map Custom Marker Styles */
+    .bin-marker {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: 700;
+      font-size: 11px;
+      border-radius: 50%;
+      border: 2.5px solid white;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.25);
+      transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+      cursor: pointer;
+    }
+    .bin-marker:hover {
+      transform: scale(1.25);
+      z-index: 9999 !important;
+    }
+    .marker-green { background: #10b981; }
+    .marker-yellow { background: #f59e0b; }
+    .marker-red { background: #ef4444; }
+
+    /* Pulse animation for high alerts */
+    @keyframes pulse-ring {
+      0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+      70% { transform: scale(1.1); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+      100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+    }
+    .marker-critical {
+      animation: pulse-ring 2s infinite;
+    }
+
+    .nav-item.active {
+      background-color: #047857;
+      color: #ffffff;
+    }
+    .nav-item.active i {
+      color: #ffffff;
+    }
+    .nav-item:not(.active):hover {
+      background-color: #e2e8f0;
+      color: #0f172a;
+    }
+
+    .tab-btn.active {
+      color: #047857;
+      border-bottom: 2px solid #047857;
+      font-weight: 700;
+    }
+
+    @media (max-width: 767px) {
+      .dashboard-shell {
+        margin-left: 0;
+      }
+
+      .dashboard-header {
+        left: 0;
+      }
+    }
+
+    .dashboard-main {
+      padding-top: 5rem !important;
+    }
+
+    .map-unavailable {
+      min-height: 20rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 0.5rem;
+      background: #e2e8f0;
+      color: #475569;
+      text-align: center;
+    }
+
+    #dashboard-map-card.map-fullscreen {
+      position: fixed;
+      inset: 1rem;
+      z-index: 60;
+      padding: 1rem;
+      background: white;
+      box-shadow: 0 20px 50px rgba(15, 23, 42, 0.25);
+    }
+
+    #dashboard-map-card.map-fullscreen #dashboard-leaflet-map {
+      height: calc(100vh - 2rem) !important;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 flex min-h-screen text-slate-800 antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- ==================== SIDEBAR ==================== -->
+  <aside id="sidebar" class="fixed inset-y-0 left-0 w-64 bg-white border-r border-slate-200 flex flex-col shrink-0 z-30 transition-all duration-300">
+    <!-- Brand Logo -->
+    <div class="h-16 flex items-center gap-3 px-6 border-b border-slate-100">
+      <div class="w-9 h-9 rounded-xl bg-brand-700 flex items-center justify-center text-white shadow-md shadow-brand-700/20">
+        <i class="fa-solid fa-leaf text-lg text-emerald-300"></i>
+      </div>
+      <div>
+        <h1 class="font-extrabold text-xl tracking-tight text-slate-900 leading-none">ECOBINIX</h1>
+        <p class="text-[10px] font-medium text-slate-400 tracking-wider uppercase mt-0.5">Smart Waste Management</p>
+      </div>
+    </div>
+
+    <!-- Navigation Menu -->
+    <nav class="p-4 space-y-1.5 flex-1 overflow-y-auto font-medium text-base text-slate-600">
+      <a href="javascript:void(0)" onclick="switchView('dashboard')" id="nav-dashboard" class="nav-item active flex items-center gap-3.5 px-4 py-2.5 rounded-xl transition-all">
+        <i class="fa-solid fa-house text-base w-5 text-center"></i>
+        <span>Dashboard</span>
+      </a>
+
+      <a href="javascript:void(0)" onclick="switchView('machines')" id="nav-machines" class="nav-item flex items-center gap-3.5 px-4 py-2.5 rounded-xl transition-all">
+        <i class="fa-solid fa-trash-can text-base w-5 text-center"></i>
+        <span>Machines</span>
+      </a>
+
+      <a href="javascript:void(0)" onclick="switchView('analytics')" id="nav-analytics" class="nav-item flex items-center gap-3.5 px-4 py-2.5 rounded-xl transition-all">
+        <i class="fa-solid fa-chart-simple text-base w-5 text-center"></i>
+        <span>Analytics</span>
+      </a>
+
+      <a href="javascript:void(0)" onclick="switchView('alerts')" id="nav-alerts" class="nav-item flex items-center justify-between px-4 py-2.5 rounded-xl transition-all">
+        <div class="flex items-center gap-3.5">
+          <i class="fa-solid fa-bell text-base w-5 text-center"></i>
+          <span>Alerts</span>
+        </div>
+        <span id="sidebar-alert-count" class="w-5 h-5 bg-rose-500 text-white rounded-full text-[11px] font-bold flex items-center justify-center">0</span>
+      </a>
+
+      <a href="javascript:void(0)" onclick="switchView('routes')" id="nav-routes" class="nav-item flex items-center gap-3.5 px-4 py-2.5 rounded-xl transition-all">
+        <i class="fa-solid fa-route text-base w-5 text-center"></i>
+        <span>Routes</span>
+      </a>
+
+      <a href="javascript:void(0)" onclick="switchView('collectors')" id="nav-collectors" class="nav-item flex items-center gap-3.5 px-4 py-2.5 rounded-xl transition-all">
+        <i class="fa-solid fa-people-group text-base w-5 text-center"></i>
+        <span>Collectors</span>
+      </a>
+
+      <a href="javascript:void(0)" onclick="switchView('green-points')" id="nav-green-points" class="nav-item flex items-center gap-3.5 px-4 py-2.5 rounded-xl transition-all">
+        <i class="fa-solid fa-leaf text-base w-5 text-center"></i>
+        <span>Green Points</span>
+      </a>
+    </nav>
+
+  </aside>
+
+  <!-- ==================== MAIN CONTENT WRAPPER ==================== -->
+  <div class="dashboard-shell ml-64 flex-1 flex flex-col min-w-0 overflow-hidden h-screen">
+
+    <!-- TOP APP BAR -->
+    <header class="dashboard-header fixed top-0 left-64 right-0 h-16 bg-white border-b border-slate-200 flex items-center justify-between px-6 shrink-0 z-20">
+      <!-- Search & Menu Toggle -->
+      <div class="flex items-center gap-4 flex-1 max-w-xl">
+        <button onclick="toggleSidebar()" class="p-2 text-slate-500 hover:text-slate-800 hover:bg-slate-100 rounded-lg transition" title="Toggle Navigation">
+          <i class="fa-solid fa-bars-staggered text-lg"></i>
+        </button>
+        <div class="relative w-full">
+          <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-slate-400 text-sm"></i>
+          <input 
+            type="text" 
+            id="globalSearchInput" 
+            oninput="handleGlobalSearch(this.value)"
+            placeholder="Search dustbin ID, location or area..." 
+            class="w-full pl-10 pr-4 py-2 bg-slate-100 hover:bg-slate-200/70 focus:bg-white text-sm text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-brand-600 transition duration-150 border border-transparent focus:border-brand-600"
+          />
+        </div>
+      </div>
+
+      <!-- Right Header Tools & User Profile -->
+      <div class="flex items-center gap-4">
+        <!-- Notification Bell -->
+        <div class="relative">
+          <button onclick="switchView('alerts')" class="relative p-2.5 rounded-full hover:bg-slate-100 text-slate-600 transition">
+            <i class="fa-regular fa-bell text-lg"></i>
+            <span id="notification-alert-count" class="absolute top-1.5 right-1.5 w-4 h-4 bg-rose-500 text-white text-[10px] font-extrabold rounded-full flex items-center justify-center border-2 border-white">0</span>
+          </button>
+        </div>
+
+        <div class="h-7 w-[1px] bg-slate-200"></div>
+
+        <!-- User Profile Dropdown -->
+        <div class="relative group cursor-pointer">
+          <div class="flex items-center gap-3">
+            <div class="w-9 h-9 rounded-full bg-slate-200 overflow-hidden border border-slate-300 ring-2 ring-emerald-500/20 flex items-center justify-center">
+              <img src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=150&q=80" alt="Avatar" class="w-full h-full object-cover">
+            </div>
+            <div class="hidden md:block text-left">
+              <h2 class="text-xs font-bold text-slate-800 leading-tight">Hriday Kundu</h2>
+              <p class="text-[11px] text-slate-400 font-medium">Fleet Operator</p>
+            </div>
+            <i class="fa-solid fa-chevron-down text-slate-400 text-xs transition group-hover:text-slate-700"></i>
+          </div>
+
+          <!-- Dropdown menu -->
+          <div class="absolute right-0 top-full mt-2 w-48 bg-white border border-slate-200 rounded-xl shadow-xl py-1.5 hidden group-hover:block z-50">
+            <a href="javascript:void(0)" onclick="switchView('collectors')" class="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-100">
+              <i class="fa-solid fa-people-group text-slate-400"></i> Collector Directory
+            </a>
+            <hr class="my-1 border-slate-100">
+            <a href="javascript:void(0)" onclick="alert('Session logged out successfully.')" class="flex items-center gap-2.5 px-4 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50">
+              <i class="fa-solid fa-arrow-right-from-bracket"></i> Sign Out
+            </a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- ==================== VIEWS CONTAINER ==================== -->
+    <main class="dashboard-main flex-1 overflow-y-auto p-5 md:p-6 space-y-6">
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 1: DASHBOARD (Exact Match to the Reference UI)                      -->
+      <!-- ========================================================================= -->
+      <section id="view-dashboard" class="space-y-6">
+
+        <!-- Top Metric KPI Cards -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+          <!-- Card 1: Total Dustbins -->
+          <div onclick="switchView('machines')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-4 hover:border-brand-500 transition group">
+            <div class="w-13 h-13 p-3.5 rounded-2xl bg-emerald-100/70 text-brand-700 flex items-center justify-center group-hover:scale-105 transition">
+              <i class="fa-solid fa-trash-can text-2xl"></i>
+            </div>
+            <div>
+              <div class="flex items-baseline gap-1.5">
+                <span class="text-2xl font-black text-slate-900" id="total-machine">0</span>
+              </div>
+              <p class="text-xs font-bold text-slate-700">Total Dustbins</p>
+              <p class="text-[11px] text-slate-400">Monitored in real time</p>
+            </div>
+          </div>
+
+          <!-- Card 2: Active Alerts -->
+          <div onclick="switchView('alerts')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-4 hover:border-rose-400 transition group">
+            <div class="w-13 h-13 p-3.5 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center group-hover:scale-105 transition">
+              <i class="fa-solid fa-bell text-2xl animate-bounce"></i>
+            </div>
+            <div>
+              <div class="flex items-baseline gap-1.5">
+                <span class="text-2xl font-black text-rose-600" id="active-alerts">0</span>
+              </div>
+              <p class="text-xs font-bold text-slate-700">Active Alerts</p>
+              <p class="text-[11px] text-slate-400">Need attention</p>
+            </div>
+          </div>
+
+          <!-- Card 3: Average Fill Level -->
+          <div onclick="switchView('analytics')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-4 hover:border-blue-400 transition group">
+            <div class="w-13 h-13 p-3.5 rounded-2xl bg-blue-100 text-blue-600 flex items-center justify-center group-hover:scale-105 transition">
+              <i class="fa-solid fa-chart-column text-2xl"></i>
+            </div>
+            <div>
+              <div class="flex items-baseline gap-1.5">
+                <span class="text-2xl font-black text-slate-900" id="average-fill-level">0%</span>
+              </div>
+              <p class="text-xs font-bold text-slate-700">Average Fill Level</p>
+              <p class="text-[11px] text-slate-400">Across all dustbins</p>
+            </div>
+          </div>
+
+          <!-- Card 4: Total Users -->
+          <div onclick="switchView('green-points')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-4 hover:border-emerald-500 transition group">
+            <div class="w-13 h-13 p-3.5 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition">
+              <i class="fa-solid fa-users text-2xl"></i>
+            </div>
+            <div>
+              <span class="text-2xl font-black text-slate-900" id="dashboard-total-users">0</span>
+              <p class="text-xs font-bold text-slate-700">Total Users</p>
+              <p class="text-[11px] text-slate-400">Registered participants</p>
+            </div>
+          </div>
+
+          <!-- Card 5: Total Collector Vans -->
+          <div onclick="switchView('collectors')" class="cursor-pointer bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex items-center gap-4 hover:border-blue-400 transition group">
+            <div class="w-13 h-13 p-3.5 rounded-2xl bg-blue-100 text-blue-700 flex items-center justify-center group-hover:scale-105 transition">
+              <i class="fa-solid fa-truck text-2xl"></i>
+            </div>
+            <div>
+              <span class="text-2xl font-black text-slate-900" id="dashboard-total-collector-vans">0</span>
+              <p class="text-xs font-bold text-slate-700">Total Collector Van</p>
+              <p class="text-[11px] text-slate-400">Active collection fleet</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Main Dashboard Split Layout -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+          <!-- Left & Center Column (Map + Summary Charts + Fleet Table) -->
+          <div class="lg:col-span-8 space-y-6">
+
+            <!-- Interactive Map Container -->
+            <div id="dashboard-map-card" class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm relative overflow-hidden">
+              <!-- Map Top Overlay Floating Controls -->
+              <div class="absolute top-7 left-7 z-[400] flex items-center gap-2 bg-white/90 backdrop-blur-md p-1 rounded-xl shadow-md border border-slate-200">
+                <button id="mapBtnLayerMap" onclick="setMapLayer('standard')" class="px-3.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white shadow-sm transition">Map</button>
+                <button id="mapBtnLayerSat" onclick="setMapLayer('satellite')" class="px-3.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition">Satellite</button>
+              </div>
+
+              <div class="absolute top-7 right-7 z-[400] flex items-center gap-2">
+                <!-- Zone Filter Dropdown -->
+                <div class="relative bg-white/95 backdrop-blur-md rounded-xl shadow-md border border-slate-200 text-xs">
+                  <div class="flex items-center gap-2 px-3 py-1.5 cursor-pointer font-bold text-slate-700">
+                    <i class="fa-solid fa-location-dot text-brand-700"></i>
+                    <select id="mapZoneSelect" onchange="filterMapZone(this.value)" class="bg-transparent outline-none cursor-pointer pr-1">
+                      <option value="all">All Zones</option>
+                      <option value="central">New Delhi Central</option>
+                      <option value="south">South Delhi</option>
+                      <option value="noida">Noida / Ghaziabad</option>
+                    </select>
+                  </div>
+                </div>
+
+                <!-- Fullscreen button -->
+                <button onclick="toggleMapFullscreen()" class="w-8 h-8 rounded-xl bg-white/95 backdrop-blur-md shadow-md border border-slate-200 flex items-center justify-center text-slate-600 hover:text-slate-900 transition">
+                  <i class="fa-solid fa-expand text-xs"></i>
+                </button>
+              </div>
+
+              <!-- Real Interactive Leaflet Map Div -->
+              <div id="dashboard-leaflet-map" class="h-80 w-full rounded-xl overflow-hidden border border-slate-100 z-10"></div>
+
+              <!-- Map Legend Overlay (Bottom Left) -->
+              <div class="absolute bottom-8 left-7 z-[400] bg-white/95 backdrop-blur-md px-3.5 py-2.5 rounded-xl shadow-lg border border-slate-200 text-[11px] font-semibold space-y-1.5">
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-emerald-500"></span>
+                  <span class="text-slate-700">Operational (&lt;70%)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-amber-500"></span>
+                  <span class="text-slate-700">Partial Fill (70–85%)</span>
+                </div>
+                <div class="flex items-center gap-2">
+                  <span class="w-3 h-3 rounded-full bg-rose-500"></span>
+                  <span class="text-slate-700">At Capacity (&gt;85%)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- 3 Mini Analytics Cards Row -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+              <!-- Card A: Fleet Health -->
+              <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-xs font-extrabold text-slate-900">Fleet Health</h3>
+                  <span class="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md">98% UP</span>
+                </div>
+                <div class="h-24 w-full">
+                  <canvas id="fleetHealthMiniChart"></canvas>
+                </div>
+                <div class="flex items-center justify-between text-[11px] font-semibold text-slate-500 pt-2 border-t border-slate-100">
+                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> 10 Online</span>
+                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-slate-400"></span> 0 Offline</span>
+                  <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span> 5 Alerts</span>
+                </div>
+              </div>
+
+              <!-- Card B: Waste Stream (Total) -->
+              <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-xs font-extrabold text-slate-900">Waste Stream (Total)</h3>
+                  <span class="text-xs font-extrabold text-brand-700">12.6t</span>
+                </div>
+                <div class="space-y-1.5 text-xs py-1">
+                  <div class="flex items-center justify-between font-medium">
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Liquid</span>
+                    <span class="font-bold text-slate-700">2.4t</span>
+                  </div>
+                  <div class="flex items-center justify-between font-medium">
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Bio-Waste</span>
+                    <span class="font-bold text-slate-700">5.8t</span>
+                  </div>
+                  <div class="flex items-center justify-between font-medium">
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Dry Waste</span>
+                    <span class="font-bold text-slate-700">3.1t</span>
+                  </div>
+                  <div class="flex items-center justify-between font-medium">
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500"></span> Plastics</span>
+                    <span class="font-bold text-slate-700">1.2t</span>
+                  </div>
+                  <div class="flex items-center justify-between font-medium">
+                    <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-500"></span> Extra</span>
+                    <span class="font-bold text-slate-700">0.8t</span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Card C: Peak Fill Capacity -->
+              <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+                <div class="flex items-center justify-between mb-2">
+                  <h3 class="text-xs font-extrabold text-slate-900">Peak Fill Capacity</h3>
+                  <span class="text-[11px] font-semibold text-rose-500">Highest <b class="font-black">100%</b></span>
+                </div>
+                <div class="h-28 w-full">
+                  <canvas id="peakFillMiniChart"></canvas>
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Fleet Overview Table Card -->
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm space-y-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <h3 class="text-sm font-extrabold text-slate-900">Fleet Overview</h3>
+                  <span class="text-xs font-bold text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">(10)</span>
+                </div>
+
+                <!-- Table Action Filter -->
+                <div class="relative">
+                  <button id="tableFilterBtn" onclick="toggleTableFilterMenu()" class="text-xs font-bold px-3 py-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 flex items-center gap-2 text-slate-700">
+                    <i class="fa-solid fa-filter text-slate-400"></i> Filter <i class="fa-solid fa-chevron-down text-[10px]"></i>
+                  </button>
+                  <div id="tableFilterDropdown" class="hidden absolute right-0 mt-1 w-44 bg-white border border-slate-200 shadow-xl rounded-xl py-1.5 z-30 text-xs">
+                    <button onclick="filterOverviewTable('all')" class="w-full text-left px-3 py-1.5 font-medium hover:bg-slate-50">Show All</button>
+                    <button onclick="filterOverviewTable('critical')" class="w-full text-left px-3 py-1.5 font-medium text-rose-600 hover:bg-rose-50">Critical Fill (&gt;85%)</button>
+                    <button onclick="filterOverviewTable('warning')" class="w-full text-left px-3 py-1.5 font-medium text-amber-600 hover:bg-amber-50">Warning (70-85%)</button>
+                    <button onclick="filterOverviewTable('normal')" class="w-full text-left px-3 py-1.5 font-medium text-emerald-600 hover:bg-emerald-50">Normal (&lt;70%)</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Table Content -->
+              <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse" id="fleetOverviewTable">
+                  <thead>
+                    <tr class="border-b border-slate-100 text-[11px] font-bold text-slate-400 uppercase tracking-wider">
+                      <th class="py-3 px-3 w-8"><input type="checkbox" id="selectAllCheckbox" onchange="toggleSelectAllBins(this.checked)" class="rounded text-brand-600 focus:ring-brand-500"></th>
+                      <th class="py-3 px-3">Dustbin ID</th>
+                      <th class="py-3 px-3">Location</th>
+                      <th class="py-3 px-3">Fill Level</th>
+                      <th class="py-3 px-3">Battery</th>
+                      <th class="py-3 px-3">Status</th>
+                      <th class="py-3 px-3">Last Update</th>
+                      <th class="py-3 px-3 text-right">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody class="text-xs font-semibold text-slate-700 divide-y divide-slate-100" id="fleetTableBody">
+                    <!-- Populated dynamically by JS -->
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Right Sidebar: Selected Dustbin Inspector Panel -->
+          <div class="lg:col-span-4 space-y-4">
+            <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm sticky top-6">
+
+              <!-- Detail Header -->
+              <div class="flex items-center justify-between pb-3 border-b border-slate-100">
+                <h3 class="font-extrabold text-sm text-slate-900">Selected Dustbin</h3>
+                <button onclick="resetSelectedBin()" class="text-slate-400 hover:text-slate-700 text-sm">
+                  <i class="fa-solid fa-xmark"></i>
+                </button>
+              </div>
+
+              <!-- Bin Hero Summary Card -->
+              <div class="flex items-center gap-4 py-3">
+                <div class="w-16 h-16 bg-emerald-50 rounded-2xl flex items-center justify-center p-2 border border-emerald-100 relative shrink-0">
+                  <!-- Vector Green Dustbin Icon Graphic -->
+                  <div class="w-11 h-13 bg-brand-600 rounded-lg flex flex-col items-center justify-center shadow-inner text-white">
+                    <div class="w-12 h-2.5 bg-brand-700 rounded-t-sm -mt-2 mb-1 shadow"></div>
+                    <i class="fa-solid fa-recycle text-emerald-200 text-lg"></i>
+                  </div>
+                </div>
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <h4 id="panelBinId" class="font-black text-slate-900 text-sm tracking-tight truncate">SGM-DEL-0102</h4>
+                    <span id="panelBinBadge" class="text-[10px] font-extrabold px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-700">NORMAL</span>
+                    <i class="fa-solid fa-wifi text-emerald-500 text-xs" title="Signal: Strong"></i>
+                  </div>
+                  <p id="panelBinLocation" class="text-[11px] font-semibold text-slate-500 truncate mt-1 flex items-center gap-1">
+                    <i class="fa-solid fa-location-dot text-brand-700 text-[10px]"></i> Connaught Place – Inner Circle
+                  </p>
+                  <p class="text-[10px] text-slate-400">New Delhi, Delhi</p>
+                </div>
+              </div>
+
+              <!-- Segmented Tabs -->
+              <div class="flex border-b border-slate-100 text-xs font-semibold text-slate-500">
+                <button onclick="setDetailTab('status')" id="tab-status" class="tab-btn active flex-1 py-2 text-center transition">Status</button>
+                <button onclick="setDetailTab('details')" id="tab-details" class="tab-btn flex-1 py-2 text-center transition">Details</button>
+                <button onclick="setDetailTab('live')" id="tab-live" class="tab-btn flex-1 py-2 text-center transition">Live Feed</button>
+              </div>
+
+              <!-- TAB CONTENT 1: STATUS -->
+              <div id="tabContent-status" class="space-y-4 pt-3">
+                <!-- Battery Health -->
+                <div>
+                  <div class="flex items-center justify-between text-xs font-bold mb-1.5">
+                    <span class="flex items-center gap-2 text-slate-700">
+                      <i class="fa-solid fa-battery-full text-emerald-500 text-sm"></i> Battery Health
+                    </span>
+                    <span id="panelBatteryVal" class="text-slate-900">100%</span>
+                  </div>
+                  <div class="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                    <div id="panelBatteryBar" class="bg-emerald-500 h-full rounded-full" style="width: 100%"></div>
+                  </div>
+                </div>
+
+                <!-- Waste Stream Breakdown Bars -->
+                <div class="space-y-2.5 pt-1 text-xs">
+                  <!-- Liquid -->
+                  <div>
+                    <div class="flex items-center justify-between font-semibold mb-1">
+                      <span class="flex items-center gap-2 text-slate-600"><i class="fa-solid fa-droplet text-blue-500 text-xs"></i> Liquid Waste</span>
+                      <span id="panelLiquidVal" class="font-bold text-slate-800">1%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <div id="panelLiquidBar" class="bg-blue-500 h-full rounded-full" style="width: 1%"></div>
+                    </div>
+                  </div>
+
+                  <!-- Bio Waste -->
+                  <div>
+                    <div class="flex items-center justify-between font-semibold mb-1">
+                      <span class="flex items-center gap-2 text-slate-600"><i class="fa-solid fa-seedling text-emerald-500 text-xs"></i> Bio Waste</span>
+                      <span id="panelBioVal" class="font-bold text-slate-800">4%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <div id="panelBioBar" class="bg-emerald-500 h-full rounded-full" style="width: 4%"></div>
+                    </div>
+                  </div>
+
+                  <!-- Dry Waste -->
+                  <div>
+                    <div class="flex items-center justify-between font-semibold mb-1">
+                      <span class="flex items-center gap-2 text-slate-600"><i class="fa-solid fa-box text-amber-500 text-xs"></i> Dry Waste</span>
+                      <span id="panelDryVal" class="font-bold text-slate-800">0%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <div id="panelDryBar" class="bg-amber-500 h-full rounded-full" style="width: 0%"></div>
+                    </div>
+                  </div>
+
+                  <!-- Plastic Waste -->
+                  <div>
+                    <div class="flex items-center justify-between font-semibold mb-1">
+                      <span class="flex items-center gap-2 text-slate-600"><i class="fa-solid fa-recycle text-purple-500 text-xs"></i> Plastic Waste</span>
+                      <span id="panelPlasticVal" class="font-bold text-slate-800">7%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <div id="panelPlasticBar" class="bg-purple-500 h-full rounded-full" style="width: 7%"></div>
+                    </div>
+                  </div>
+
+                  <!-- Extra / Hazardous -->
+                  <div>
+                    <div class="flex items-center justify-between font-semibold mb-1">
+                      <span class="flex items-center gap-2 text-slate-600"><i class="fa-solid fa-triangle-exclamation text-rose-500 text-xs"></i> Extra / Hazardous</span>
+                      <span id="panelHazardVal" class="font-bold text-slate-800">4%</span>
+                    </div>
+                    <div class="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                      <div id="panelHazardBar" class="bg-rose-500 h-full rounded-full" style="width: 4%"></div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Waste Composition Donut Section -->
+                <div class="pt-3 border-t border-slate-100">
+                  <div class="flex items-center justify-between mb-2">
+                    <h4 class="text-xs font-bold text-slate-900">Waste Composition</h4>
+                    <span id="panelDonutBinTag" class="text-[10px] font-bold text-slate-400">SGM-DEL-0102</span>
+                  </div>
+                  <div class="flex items-center gap-3">
+                    <div class="w-24 h-24 shrink-0 relative">
+                      <canvas id="compositionDonutChart"></canvas>
+                    </div>
+                    <div class="flex-1 space-y-1 text-[11px] font-semibold text-slate-600">
+                      <div class="flex items-center justify-between">
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Liquid</span>
+                        <span class="font-bold text-slate-800">2.4t (30%)</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Bio-Waste</span>
+                        <span class="font-bold text-slate-800">5.8t (32%)</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Dry Waste</span>
+                        <span class="font-bold text-slate-800">3.1t (18%)</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-purple-500"></span> Plastics</span>
+                        <span class="font-bold text-slate-800">1.2t (20%)</span>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <span class="flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-slate-500"></span> Extra</span>
+                        <span class="font-bold text-slate-800">0.8t (5%)</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Ping Info -->
+                <div class="flex items-center gap-2 text-[11px] font-semibold text-slate-500 pt-1">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                  <span>Last Ping: <span id="panelLastPingVal" class="text-slate-800 font-bold">Just now</span></span>
+                </div>
+              </div>
+
+              <!-- TAB CONTENT 2: DETAILS (Hidden by default) -->
+              <div id="tabContent-details" class="hidden space-y-3 pt-3 text-xs">
+                <div class="bg-slate-50 p-3 rounded-xl space-y-2 border border-slate-100">
+                  <div class="flex justify-between"><span class="text-slate-400">Model:</span> <span class="font-bold text-slate-800">ECO-SensV4 Smart Solar</span></div>
+                  <div class="flex justify-between"><span class="text-slate-400">Total Volume:</span> <span class="font-bold text-slate-800">1,200 Liters</span></div>
+                  <div class="flex justify-between"><span class="text-slate-400">Firmware:</span> <span class="font-bold text-slate-800">v3.4.12-rc2</span></div>
+                  <div class="flex justify-between"><span class="text-slate-400">Tilt Sensor:</span> <span class="font-bold text-emerald-600">Level (0.2°)</span></div>
+                  <div class="flex justify-between"><span class="text-slate-400">Internal Temp:</span> <span class="font-bold text-slate-800">28.4° C</span></div>
+                  <div class="flex justify-between"><span class="text-slate-400">Odor Filter:</span> <span class="font-bold text-emerald-600">92% Life</span></div>
+                </div>
+              </div>
+
+              <!-- TAB CONTENT 3: LIVE FEED (Hidden by default) -->
+              <div id="tabContent-live" class="hidden space-y-3 pt-3 text-xs">
+                <div class="relative bg-slate-900 rounded-xl overflow-hidden aspect-video flex items-center justify-center text-white">
+                  <div class="absolute top-2 left-2 flex items-center gap-1.5 bg-rose-600/90 text-[10px] font-bold px-2 py-0.5 rounded-md uppercase">
+                    <span class="w-1.5 h-1.5 rounded-full bg-white animate-ping"></span> Live Optical Sensor
+                  </div>
+                  <i class="fa-solid fa-camera-retro text-3xl text-slate-500"></i>
+                  <span class="absolute bottom-2 right-2 text-[10px] font-mono text-slate-400">CAM_NODE_0102</span>
+                </div>
+                <p class="text-[11px] text-slate-500 leading-tight">Optical volume scanner validates fill level depth every 15 minutes.</p>
+              </div>
+
+              <!-- Action Button: DISPATCH ROUTE -->
+              <div class="pt-3">
+                <button onclick="dispatchSpecificBinRoute()" class="w-full bg-brand-700 hover:bg-brand-800 active:bg-brand-900 text-white font-bold py-3 px-4 rounded-xl shadow-lg shadow-brand-700/25 flex items-center justify-center gap-2.5 transition group">
+                  <i class="fa-solid fa-paper-plane group-hover:translate-x-0.5 -rotate-12 transition"></i>
+                  <span>DISPATCH ROUTE</span>
+                </button>
+              </div>
+
+            </div>
+          </div>
+
+        </div>
+      </section>
+
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 2: MACHINES (Full Fleet Inventory & Telemetry Management)           -->
+      <!-- ========================================================================= -->
+      <section id="view-machines" class="hidden space-y-6">
+        <!-- Machines Top Toolbar -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900">Machines Fleet Inventory</h2>
+            <p class="text-xs text-slate-500">Configure, monitor, and deploy connected solar IoT compactor dustbins.</p>
+          </div>
+          <div class="flex items-center gap-3">
+            <button onclick="openAddMachineModal()" class="bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-md shadow-brand-700/20">
+              <i class="fa-solid fa-plus"></i> Add New Unit
+            </button>
+            <button onclick="exportMachinesCSV()" class="border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2">
+              <i class="fa-solid fa-download text-slate-400"></i> Export Fleet
+            </button>
+          </div>
+        </div>
+
+        <!-- Machines Cards Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5" id="machinesCardsGrid">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 3: ANALYTICS                                                         -->
+      <!-- ========================================================================= -->
+      <section id="view-analytics" class="hidden space-y-6">
+        <!-- Analytics Header Filter -->
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900">Waste Streams & Sustainability Analytics</h2>
+            <p class="text-xs text-slate-500">Deep telemetry analysis, collection efficiency, and ESG reduction impact.</p>
+          </div>
+          <div class="flex items-center gap-2 bg-slate-100 p-1 rounded-xl text-xs font-bold">
+            <button onclick="setAnalyticsRange('7d')" class="analytics-range-btn px-3 py-1.5 rounded-lg bg-white shadow-sm text-slate-900">Last 7 Days</button>
+            <button onclick="setAnalyticsRange('30d')" class="analytics-range-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900">30 Days</button>
+            <button onclick="setAnalyticsRange('90d')" class="analytics-range-btn px-3 py-1.5 rounded-lg text-slate-600 hover:text-slate-900">Quarter</button>
+          </div>
+        </div>
+
+        <!-- 4 KPI Metrics -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold text-slate-400">Total Waste Diverted</p>
+            <h3 class="text-2xl font-black text-slate-900 mt-1">148.4 Tons</h3>
+            <span class="text-[11px] font-bold text-emerald-600 flex items-center gap-1 mt-1">
+              <i class="fa-solid fa-arrow-trend-up"></i> +14.2% from last week
+            </span>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold text-slate-400">CO2 Emissions Saved</p>
+            <h3 class="text-2xl font-black text-emerald-600 mt-1">32.8 MT</h3>
+            <span class="text-[11px] font-bold text-emerald-600 flex items-center gap-1 mt-1">
+              <i class="fa-solid fa-seedling"></i> Carbon Credits eligible
+            </span>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold text-slate-400">Route Fuel Optimization</p>
+            <h3 class="text-2xl font-black text-brand-700 mt-1">-28.5%</h3>
+            <span class="text-[11px] font-bold text-slate-500 flex items-center gap-1 mt-1">
+              <i class="fa-solid fa-gas-pump text-slate-400"></i> Smart batch dispatch
+            </span>
+          </div>
+          <div class="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm">
+            <p class="text-xs font-bold text-slate-400">Recycle Segregation Score</p>
+            <h3 class="text-2xl font-black text-purple-600 mt-1">94.2%</h3>
+            <span class="text-[11px] font-bold text-emerald-600 flex items-center gap-1 mt-1">
+              <i class="fa-solid fa-check"></i> High purity index
+            </span>
+          </div>
+        </div>
+
+        <!-- Analytics Charts Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <h3 class="text-sm font-extrabold text-slate-900">Daily Waste Collection by Category (Tons)</h3>
+            <div class="h-64">
+              <canvas id="analyticsTrendChart"></canvas>
+            </div>
+          </div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm space-y-3">
+            <h3 class="text-sm font-extrabold text-slate-900">Hourly Fill Peaks vs Dispatch Speed</h3>
+            <div class="h-64">
+              <canvas id="analyticsPeakChart"></canvas>
+            </div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 4: ALERTS                                                            -->
+      <!-- ========================================================================= -->
+      <section id="view-alerts" class="hidden space-y-6">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-2">
+              <h2 class="text-lg font-extrabold text-slate-900">Active Alert Center</h2>
+              <span id="alert-summary-count" class="bg-rose-100 text-rose-700 text-xs font-extrabold px-2.5 py-0.5 rounded-full">0 Critical Machines</span>
+            </div>
+            <p class="text-xs text-slate-500">Autonomous sensor thresholds, overflow warnings, and tilt alarms.</p>
+          </div>
+          <div class="flex items-center gap-2">
+            <button onclick="dismissAllAlerts()" class="text-xs font-bold px-3 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-slate-700">
+              Acknowledge All
+            </button>
+            <button onclick="dispatchAllAlertRoutes()" class="text-xs font-bold px-4 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl shadow-md shadow-rose-600/20 flex items-center gap-2">
+              <i class="fa-solid fa-truck-fast"></i> Quick Dispatch Fleet
+            </button>
+          </div>
+        </div>
+
+        <div id="alert-machine-detail" class="hidden bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+          <div class="flex items-start justify-between gap-4 mb-4">
+            <div>
+              <p class="text-[10px] font-extrabold text-brand-700 uppercase tracking-wider">Machine Detail</p>
+              <h3 id="alert-detail-title" class="text-lg font-extrabold text-slate-900 mt-1">Selected Machine</h3>
+              <p id="alert-detail-location" class="text-xs text-slate-500 mt-1"></p>
+            </div>
+            <button onclick="closeAlertMachineDetail()" class="text-slate-400 hover:text-slate-700" title="Close machine details"><i class="fa-solid fa-xmark text-lg"></i></button>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div id="alert-detail-map" class="min-h-[300px] rounded-xl overflow-hidden border border-slate-200 bg-slate-100"></div>
+            <div>
+              <div id="alert-detail-stats" class="grid grid-cols-2 gap-3 text-xs mb-4"></div>
+              <h4 class="text-sm font-extrabold text-slate-900 mb-2">All Bin Fill Levels</h4>
+              <div id="alert-all-bin-levels" class="max-h-56 overflow-y-auto space-y-2"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Alert Cards List -->
+        <div class="space-y-3" id="alertsContainer">
+          <!-- Populated by JS -->
+        </div>
+      </section>
+
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 5: ROUTES                                                            -->
+      <!-- ========================================================================= -->
+      <section id="view-routes" class="hidden space-y-6">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900">Automated Route Optimization</h2>
+            <p class="text-xs text-slate-500">AI-computed collection sequencing based on real-time bin capacity & traffic.</p>
+          </div>
+          <button onclick="startRouteSimulation()" id="btnSimulateRoute" class="bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl shadow-md flex items-center gap-2">
+            <i class="fa-solid fa-play"></i> Simulate Route #104
+          </button>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <!-- Active Route Sequence -->
+          <div class="lg:col-span-5 bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
+            <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <span id="selected-route-code" class="text-xs font-extrabold text-brand-700">ACTIVE DISPATCH #R-DEL-409</span>
+                <h4 id="selected-route-title" class="font-bold text-slate-900 text-sm">Central &amp; East Corridor</h4>
+              </div>
+              <span id="selected-route-truck" class="bg-emerald-100 text-emerald-800 text-xs font-extrabold px-2 py-0.5 rounded-md">Truck #04</span>
+            </div>
+
+            <div>
+              <div class="flex items-center justify-between mb-2"><h4 class="text-xs font-extrabold text-slate-900">Active Routes</h4><span class="text-[10px] text-slate-400">Select a route to view its map</span></div>
+              <div id="activeRoutesList" class="space-y-2"></div>
+            </div>
+
+            <!-- Route Stop Timeline -->
+            <div class="space-y-3 text-xs" id="routeStopsList">
+              <!-- Stop 1 -->
+              <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div class="w-6 h-6 rounded-full bg-brand-700 text-white font-extrabold flex items-center justify-center shrink-0">1</div>
+                <div class="flex-1">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-slate-800">Chandni Chowk Market</span>
+                    <span class="text-rose-600 font-extrabold">100% Fill</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400">Dustbin ID: SGM-DEL-0104 • Priority High</p>
+                </div>
+              </div>
+
+              <!-- Stop 2 -->
+              <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div class="w-6 h-6 rounded-full bg-brand-700 text-white font-extrabold flex items-center justify-center shrink-0">2</div>
+                <div class="flex-1">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-slate-800">West Delhi Gateway</span>
+                    <span class="text-rose-600 font-extrabold">97% Fill</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400">Dustbin ID: SGM-DEL-0106 • Priority High</p>
+                </div>
+              </div>
+
+              <!-- Stop 3 -->
+              <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div class="w-6 h-6 rounded-full bg-brand-700 text-white font-extrabold flex items-center justify-center shrink-0">3</div>
+                <div class="flex-1">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-slate-800">Noida Expressway Hub</span>
+                    <span class="text-rose-600 font-extrabold">88% Fill</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400">Dustbin ID: SGM-DEL-0109 • Priority High</p>
+                </div>
+              </div>
+
+              <!-- Stop 4 -->
+              <div class="flex items-start gap-3 p-2.5 rounded-xl bg-slate-50 border border-slate-200/80">
+                <div class="w-6 h-6 rounded-full bg-slate-300 text-slate-700 font-extrabold flex items-center justify-center shrink-0">4</div>
+                <div class="flex-1">
+                  <div class="flex justify-between items-center">
+                    <span class="font-bold text-slate-800">Saket Select Citywalk</span>
+                    <span class="text-amber-600 font-extrabold">72% Fill</span>
+                  </div>
+                  <p class="text-[11px] text-slate-400">Dustbin ID: SGM-DEL-0105 • Scheduled Next</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Route Metrics Footer -->
+            <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-100 flex items-center justify-between text-xs font-bold text-emerald-900">
+              <div>
+                <p class="text-[11px] text-emerald-700">Est. Completion</p>
+                <p class="text-sm">42 mins (18.4 km)</p>
+              </div>
+              <div class="text-right">
+                <p class="text-[11px] text-emerald-700">Fuel Savings</p>
+                <p class="text-sm">4.2 Liters Saved</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Map View of the Active Route -->
+          <div class="lg:col-span-7 bg-white rounded-2xl p-4 border border-slate-200 shadow-sm relative min-h-[360px]">
+            <div id="route-preview-leaflet-map" class="w-full h-full min-h-[350px] rounded-xl"></div>
+          </div>
+        </div>
+      </section>
+
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 6: COLLECTORS                                                        -->
+      <!-- ========================================================================= -->
+      <section id="view-collectors" class="hidden space-y-6">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h2 class="text-lg font-extrabold text-slate-900">Collection Crew Directory</h2>
+            <p class="text-xs text-slate-500">Manage collector identity, vehicle assignments, contact details, and availability.</p>
+          </div>
+          <button onclick="openAddCollectorModal()" class="bg-brand-700 hover:bg-brand-800 text-white text-xs font-bold px-4 py-2.5 rounded-xl flex items-center gap-2 shadow-md shadow-brand-700/20">
+            <i class="fa-solid fa-user-plus"></i> Add Collector
+          </button>
+        </div>
+        <div id="collectorsGrid" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5"></div>
+      </section>
+
+
+      <!-- ========================================================================= -->
+      <!-- VIEW 7: GREEN POINTS                                                     -->
+      <!-- ========================================================================= -->
+      <section id="view-green-points" class="hidden space-y-6">
+        <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm">
+          <h2 class="text-xl font-extrabold text-slate-900">Green Points</h2>
+          <p class="text-sm text-slate-500 mt-1">Monitor user participation, waste contribution and environmental rewards.</p>
+        </div>
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"><div class="flex items-start justify-between"><div><p class="text-sm font-bold text-slate-400">Total Users</p><h3 id="green-points-total-users" class="text-3xl font-black text-slate-900 mt-1">0</h3></div><div class="w-12 h-12 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center"><i class="fa-solid fa-users text-xl"></i></div></div></div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"><div class="flex items-start justify-between"><div><p class="text-sm font-bold text-slate-400">Average Points</p><h3 id="green-points-average-points" class="text-3xl font-black text-brand-700 mt-1">0</h3></div><div class="w-12 h-12 rounded-xl bg-lime-100 text-lime-700 flex items-center justify-center"><i class="fa-solid fa-star text-xl"></i></div></div></div>
+          <div class="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm hover:-translate-y-0.5 hover:shadow-md transition-all"><div class="flex items-start justify-between"><div><p class="text-sm font-bold text-slate-400">Average Waste Weight / User</p><h3 id="green-points-average-waste" class="text-3xl font-black text-emerald-600 mt-1">0 kg</h3></div><div class="w-12 h-12 rounded-xl bg-teal-100 text-teal-700 flex items-center justify-center"><i class="fa-solid fa-scale-balanced text-xl"></i></div></div></div>
+        </div>
+
+        <div class="bg-white rounded-2xl p-4 border border-slate-200/80 shadow-sm">
+          <div class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 text-sm">
+            <div class="bg-slate-50 rounded-xl p-3 border border-slate-100"><p class="text-slate-500 font-semibold">No. of First Sorter</p><p id="green-count-first-sorter" class="text-2xl font-extrabold text-slate-700 mt-1">0</p></div>
+            <div class="bg-blue-50 rounded-xl p-3 border border-blue-100"><p class="text-blue-700 font-semibold">No. of Perfect Sorter</p><p id="green-count-perfect-sorter" class="text-2xl font-extrabold text-blue-700 mt-1">0</p></div>
+            <div class="bg-emerald-50 rounded-xl p-3 border border-emerald-100"><p class="text-emerald-700 font-semibold">No. of Community Hero</p><p id="green-count-community-hero" class="text-2xl font-extrabold text-emerald-700 mt-1">0</p></div>
+            <div class="bg-purple-50 rounded-xl p-3 border border-purple-100"><p class="text-purple-700 font-semibold">No. of Eco Warrior</p><p id="green-count-eco-warrior" class="text-2xl font-extrabold text-purple-700 mt-1">0</p></div>
+            <div class="bg-amber-50 rounded-xl p-3 border border-amber-100"><p class="text-amber-700 font-semibold">No. of City Legend</p><p id="green-count-city-legend" class="text-2xl font-extrabold text-amber-700 mt-1">0</p></div>
+          </div>
+        </div>
+
+        <div class="bg-white rounded-2xl border border-slate-200/80 shadow-sm overflow-hidden">
+          <div class="p-4 border-b border-slate-100 flex flex-col lg:flex-row gap-3 lg:items-center lg:justify-between"><div><h3 class="text-base font-extrabold text-slate-900">User Green Points</h3><p class="text-xs text-slate-400 mt-0.5">Review participation and reward progress by district.</p></div><div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 w-full lg:w-auto">
+            <label class="relative"><i class="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-xs"></i><input id="green-points-search" oninput="updateGreenPointsTable(true)" type="search" placeholder="Search Users..." class="w-full sm:w-48 pl-8 pr-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-600"></label>
+            <select id="green-points-district" onchange="updateGreenPointsTable(true)" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-600"><option value="">All Districts</option></select>
+            <select id="green-points-level" onchange="updateGreenPointsTable(true)" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-600"><option value="">All Levels</option></select>
+            <select id="green-points-sort" onchange="updateGreenPointsTable(true)" class="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-600"><option value="">Sort by default</option><option value="points-desc">Points: high to low</option><option value="points-asc">Points: low to high</option><option value="waste-desc">Waste weight: high to low</option><option value="waste-asc">Waste weight: low to high</option></select>
+          </div></div>
+          <div class="overflow-x-auto"><table class="w-full text-left text-sm min-w-[760px]"><thead class="bg-slate-50 text-xs uppercase tracking-wider text-slate-500 font-extrabold"><tr><th class="py-3 px-4">SL No</th><th class="py-3 px-4">District</th><th class="py-3 px-4">Email ID</th><th class="py-3 px-4">Points</th><th class="py-3 px-4">Level</th><th class="py-3 px-4">Waste Weight</th></tr></thead><tbody id="green-points-table-body" class="divide-y divide-slate-100"></tbody></table></div>
+        </div>
+      </section>
+
+    </main>
+  </div>
+
+
+  <!-- ==================== ADD MACHINE MODAL ==================== -->
+  <div id="addMachineModal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-md w-full p-6 space-y-4 border border-slate-100">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <h3 class="font-extrabold text-base text-slate-900">Provision New Dustbin Node</h3>
+        <button onclick="closeAddMachineModal()" class="text-slate-400 hover:text-slate-700"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form onsubmit="handleCreateMachine(event)" class="space-y-3 text-xs">
+        <div>
+          <label class="font-bold text-slate-700 block mb-1">Dustbin ID</label>
+          <input type="text" id="newBinId" required value="SGM-DEL-0111" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+        </div>
+        <div>
+          <label class="font-bold text-slate-700 block mb-1">Location / Landmark Name</label>
+          <input type="text" id="newBinLoc" required placeholder="e.g. Lajpat Nagar Central Market" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+        </div>
+        <div class="grid grid-cols-2 gap-3">
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Latitude</label>
+            <input type="text" id="newBinLat" value="28.5672" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+          </div>
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Longitude</label>
+            <input type="text" id="newBinLng" value="77.2435" required class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+          </div>
+        </div>
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeAddMachineModal()" class="px-4 py-2 border border-slate-200 rounded-xl font-bold hover:bg-slate-50 text-slate-700">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-xl shadow-md">Deploy Node</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== MACHINE DETAILS MODAL ==================== -->
+  <div id="machineDetailsModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-5 border border-slate-100 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <p class="text-[10px] font-bold text-brand-700 uppercase tracking-wider">Machine Configuration</p>
+          <h3 id="machineDetailsTitle" class="font-extrabold text-lg text-slate-900">Dustbin Node</h3>
+        </div>
+        <button onclick="closeMachineDetails()" class="text-slate-400 hover:text-slate-700 text-lg" title="Close details">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="grid grid-cols-2 gap-3 text-xs">
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-100"><p class="text-slate-400">Node ID</p><p id="detailBinId" class="font-bold text-slate-900 mt-1"></p></div>
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-100"><p class="text-slate-400">Fill Status</p><p id="detailBinFill" class="font-bold text-slate-900 mt-1"></p></div>
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-100 col-span-2"><p class="text-slate-400">Location</p><p id="detailBinLocation" class="font-bold text-slate-900 mt-1"></p></div>
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-100"><p class="text-slate-400">Latitude</p><p id="detailBinLat" class="font-bold text-slate-900 mt-1"></p></div>
+        <div class="bg-slate-50 rounded-xl p-3 border border-slate-100"><p class="text-slate-400">Longitude</p><p id="detailBinLng" class="font-bold text-slate-900 mt-1"></p></div>
+      </div>
+
+      <div>
+        <div class="flex items-center justify-between mb-3">
+          <h4 class="text-sm font-extrabold text-slate-900">Waste Composition</h4>
+          <span class="text-[11px] text-slate-400">Current sensor reading</span>
+        </div>
+        <div id="machineWasteComposition" class="grid grid-cols-2 gap-3"></div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2 border-t border-slate-100">
+        <button onclick="closeMachineDetails()" class="px-4 py-2 border border-slate-200 rounded-xl font-bold hover:bg-slate-50 text-slate-700 text-xs">Close</button>
+        <button id="detailRouteButton" class="px-4 py-2 bg-brand-700 hover:bg-brand-800 text-white rounded-xl font-bold text-xs">Add to Route</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== ADD COLLECTOR MODAL ==================== -->
+  <div id="addCollectorModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-6 space-y-4 border border-slate-100 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3">
+        <div>
+          <p class="text-[10px] font-bold text-brand-700 uppercase tracking-wider">Crew Directory</p>
+          <h3 class="font-extrabold text-lg text-slate-900">Add Collector</h3>
+        </div>
+        <button onclick="closeAddCollectorModal()" class="text-slate-400 hover:text-slate-700 text-lg" title="Close form"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <form onsubmit="handleCreateCollector(event)" class="space-y-3 text-xs">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <div class="sm:col-span-2">
+            <label class="font-bold text-slate-700 block mb-1">Photo URL</label>
+            <input type="url" id="newCollectorPhoto" placeholder="https://example.com/photo.jpg" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+          </div>
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Full Name</label>
+            <input type="text" id="newCollectorName" required placeholder="Collector name" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+          </div>
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Driving Licence ID</label>
+            <input type="text" id="newCollectorLicense" required placeholder="DL-XXXXXXXX" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+          </div>
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Vehicle Number</label>
+            <input type="text" id="newCollectorVehicle" required placeholder="DL 01 AB 1234" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+          </div>
+          <div>
+            <label class="font-bold text-slate-700 block mb-1">Contact Number</label>
+            <input type="tel" id="newCollectorPhone" required placeholder="+91 98765 43210" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+          </div>
+          <div class="sm:col-span-2">
+            <label class="font-bold text-slate-700 block mb-1">Status</label>
+            <select id="newCollectorStatus" class="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-600 outline-none">
+              <option>Available</option>
+              <option>On Route</option>
+              <option>Off Duty</option>
+            </select>
+          </div>
+        </div>
+        <div class="pt-2 flex items-center justify-end gap-2">
+          <button type="button" onclick="closeAddCollectorModal()" class="px-4 py-2 border border-slate-200 rounded-xl font-bold hover:bg-slate-50 text-slate-700">Cancel</button>
+          <button type="submit" class="px-5 py-2 bg-brand-700 hover:bg-brand-800 text-white font-bold rounded-xl shadow-md"><i class="fa-solid fa-user-plus mr-1"></i> Add Collector</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- ==================== QUICK DISPATCH MODAL ==================== -->
+  <div id="quickDispatchModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full p-6 space-y-5 border border-slate-100 max-h-[90vh] overflow-y-auto">
+      <div class="flex items-start justify-between border-b border-slate-100 pb-3">
+        <div><p class="text-[10px] font-extrabold text-rose-600 uppercase tracking-wider">Quick Dispatch Fleet</p><h3 class="text-lg font-extrabold text-slate-900 mt-1">Confirm Ready Machines</h3></div>
+        <button onclick="closeQuickDispatchModal()" class="text-slate-400 hover:text-slate-700" title="Close dispatch dialog"><i class="fa-solid fa-xmark text-lg"></i></button>
+      </div>
+      <div id="ready-dispatch-list" class="space-y-2"></div>
+      <div id="quick-dispatch-map" class="w-full h-64 rounded-xl overflow-hidden border border-slate-200 bg-slate-100"></div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div><label for="dispatchCollectorSelect" class="block text-xs font-bold text-slate-700 mb-1.5">Select Collector Van</label><select id="dispatchCollectorSelect" class="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-brand-600"></select></div>
+        <div class="bg-emerald-50 border border-emerald-100 rounded-xl p-3 text-xs text-emerald-800"><p class="font-extrabold">Dispatch status</p><p id="dispatch-ready-count" class="mt-1">0 machines ready for dispatch.</p></div>
+      </div>
+      <div class="flex justify-end gap-2 border-t border-slate-100 pt-3"><button onclick="closeQuickDispatchModal()" class="px-4 py-2 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 hover:bg-slate-50">Cancel</button><button onclick="confirmQuickDispatch()" id="confirmQuickDispatchButton" class="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white rounded-xl text-xs font-bold shadow-md"><i class="fa-solid fa-truck-fast mr-1"></i> Confirm Route</button></div>
+    </div>
+  </div>
+
+
+<script src="main.js"></script>
+</body>
+</html>
