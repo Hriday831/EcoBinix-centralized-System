@@ -430,12 +430,12 @@ const BIN_TELEMETRY_SEED = [
         attributionControl: false
       }).setView([28.6139, 77.2090], 11);
 
-      dashboardMapLayers.standard = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19
-      }).addTo(dashboardMap);
       dashboardMapLayers.satellite = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
         maxZoom: 19,
         attribution: 'Tiles &copy; Esri'
+      }).addTo(dashboardMap);
+      dashboardMapLayers.standard = L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+        maxZoom: 19
       });
 
       // Add Custom Zoom Control bottom right
@@ -462,17 +462,14 @@ const BIN_TELEMETRY_SEED = [
 
     function setMapLayer(type) {
       if (!dashboardMap) return;
-      Object.entries(dashboardMapLayers).forEach(([layerType, layer]) => {
-        if (layerType === type) dashboardMap.addLayer(layer);
+      const layerType = 'satellite';
+      Object.entries(dashboardMapLayers).forEach(([currentLayerType, layer]) => {
+        if (currentLayerType === layerType) dashboardMap.addLayer(layer);
         else if (dashboardMap.hasLayer(layer)) dashboardMap.removeLayer(layer);
       });
-      document.getElementById('mapBtnLayerMap').className = type === 'standard' 
-        ? 'px-3.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white shadow-sm transition' 
-        : 'px-3.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition';
 
-      document.getElementById('mapBtnLayerSat').className = type === 'satellite' 
-        ? 'px-3.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white shadow-sm transition' 
-        : 'px-3.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition';
+      document.getElementById('mapBtnLayerMap').className = 'px-3.5 py-1 text-xs font-bold rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition';
+      document.getElementById('mapBtnLayerSat').className = 'px-3.5 py-1 text-xs font-bold rounded-lg bg-slate-900 text-white shadow-sm transition';
     }
 
     function filterMapZone(zone) {
@@ -535,8 +532,9 @@ const BIN_TELEMETRY_SEED = [
         attributionControl: false
       }).setView([28.6139, 77.2090], 12);
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri'
       }).addTo(fullScreenMap);
 
       BINS_DATA.forEach(bin => {
@@ -577,8 +575,9 @@ const BIN_TELEMETRY_SEED = [
         attributionControl: false
       }).fitBounds(stops, { padding: [25, 25] });
 
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri'
       }).addTo(routePreviewMap);
 
       L.polyline(stops, { color: '#047857', weight: 5, opacity: 0.9 }).addTo(routePreviewMap);
@@ -949,7 +948,10 @@ const BIN_TELEMETRY_SEED = [
       if (typeof L !== 'undefined') {
         if (alertDetailMap) alertDetailMap.remove();
         alertDetailMap = L.map('alert-detail-map', { attributionControl: false }).setView([bin.lat, bin.lng], 13);
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(alertDetailMap);
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+          maxZoom: 19,
+          attribution: 'Tiles &copy; Esri'
+        }).addTo(alertDetailMap);
         L.marker([bin.lat, bin.lng]).addTo(alertDetailMap).bindPopup(`<b>${bin.id}</b><br>${bin.location}`).openPopup();
       } else {
         document.getElementById('alert-detail-map').innerHTML = '<div class="map-unavailable"><i class="fa-solid fa-map-location-dot text-3xl"></i><span>Map service is unavailable.</span></div>';
@@ -1033,7 +1035,10 @@ const BIN_TELEMETRY_SEED = [
       mapElement.innerHTML = '';
       const routePoints = readyToDispatch.map(bin => [bin.lat, bin.lng]);
       quickDispatchMap = L.map('quick-dispatch-map', { attributionControl: false }).fitBounds(routePoints, { padding: [25, 25] });
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', { maxZoom: 19 }).addTo(quickDispatchMap);
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+        maxZoom: 19,
+        attribution: 'Tiles &copy; Esri'
+      }).addTo(quickDispatchMap);
       L.polyline(routePoints, { color: '#e11d48', weight: 4, opacity: 0.85, dashArray: '8, 8' }).addTo(quickDispatchMap);
       readyToDispatch.forEach((bin, index) => {
         const markerIcon = L.divIcon({
